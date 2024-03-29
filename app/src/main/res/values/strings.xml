@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">JeremyBui-SimpleBoggle</string>
+    <string name="score_format">Score: %d</string>
+
+</resources>
