@@ -137,6 +137,7 @@ class GameFragment : Fragment() {
 
         if (word.length >= 4 && isValidWord(word)) {
             val scoreToAdd = calculateScore(word)
+            submittedWords.add(word)
             currentScore += scoreToAdd
             listener?.onScoreUpdated(currentScore)
             Snackbar.make(requireView(), "That’s correct, +$scoreToAdd", Snackbar.LENGTH_SHORT).show()
