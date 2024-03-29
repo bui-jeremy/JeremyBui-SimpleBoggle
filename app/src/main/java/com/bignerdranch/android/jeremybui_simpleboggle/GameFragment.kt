@@ -58,12 +58,24 @@ class GameFragment : Fragment() {
     private fun generateInitialLetters() {
         val vowels = listOf("A", "E", "I", "O", "U")
         val consonants = ('A'..'Z').filter { !vowels.contains(it.toString()) }
+        val lettersList = mutableListOf<String>()
 
-        // ensure at least 2 vowels are present
-        val initialVowels = List(2) { vowels.random() }
-        val remainingLetters = List(gridSize * gridSize - 2) { consonants.random().toString() }
+        // game was unplayable, better chance for vowel
+        val vowelProbability = 0.10
 
-        initialLetters = (initialVowels + remainingLetters).shuffled()
+        // ensure at least 2 vowels are included initially
+        lettersList.add(vowels.random())
+        lettersList.add(vowels.random())
+
+        // chance for each slot to be either a vowel or a consonant
+        for (i in 2 until gridSize * gridSize) {
+            if (Math.random() < vowelProbability) {
+                lettersList.add(vowels.random())
+            } else {
+                lettersList.add(consonants.random().toString())
+            }
+        }
+        initialLetters = lettersList.shuffled()
     }
     private fun initializeGameBoard() {
         gridLayout.removeAllViews()
