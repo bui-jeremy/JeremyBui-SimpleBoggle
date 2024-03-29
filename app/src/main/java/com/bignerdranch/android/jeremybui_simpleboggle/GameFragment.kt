@@ -9,17 +9,22 @@ import android.widget.Button
 import android.widget.GridLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import com.google.android.material.snackbar.Snackbar
 import kotlin.math.abs
 
 class GameFragment : Fragment() {
     private var listener: GameInteractionListener? = null
     private lateinit var selectedLettersTextView: TextView
     private val selectedLetters = StringBuilder()
-    private val selectedButtons = mutableListOf<Button>()
-    private lateinit var dictionary: Set<String>
     private var currentScore = 0
-    private val lastSelectedPositions = mutableListOf<Int>()
     private val gridSize = 4
+    private var lastSelectedIndex: Int? = null
+    private lateinit var dictionary: Set<String>
+    private lateinit var gridLayout: GridLayout
+    private var initialLetters: List<String>? = null
+    private val allButtons = mutableListOf<Button>()
+    private val submittedWords = mutableSetOf<String>()
+
 
     interface GameInteractionListener {
         fun onScoreUpdated(score: Int)
@@ -29,92 +34,110 @@ class GameFragment : Fragment() {
         super.onAttach(context)
         if (context is GameInteractionListener) {
             listener = context
-        } else {
-            throw RuntimeException("$context must implement GameInteractionListener")
         }
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        dictionary = loadDictionary()
         val view = inflater.inflate(R.layout.fragment_game, container, false)
-        val gridLayout: GridLayout = view.findViewById(R.id.gridLayoutGameBoard)
+        gridLayout = view.findViewById(R.id.gridLayoutGameBoard)
         selectedLettersTextView = view.findViewById(R.id.selectedLettersTextView)
-        val submitButton: Button = view.findViewById(R.id.submitBtn)
-        val clearButton: Button = view.findViewById(R.id.clearBtn)
 
-        initializeGameBoard(gridLayout)
-        submitButton.setOnClickListener { submitWord() }
-        clearButton.setOnClickListener { clearSelection() }
+        view.findViewById<Button>(R.id.submitBtn).setOnClickListener { submitWord() }
+        view.findViewById<Button>(R.id.clearBtn).setOnClickListener { clearSelection() }
+
+        dictionary = loadDictionary()
+
+        if (initialLetters == null) {
+            generateInitialLetters()
+        }
+        initializeGameBoard()
+
         return view
     }
 
-    private fun initializeGameBoard(gridLayout: GridLayout) {
-        val rowCount = gridSize
-        val columnCount = gridSize
-        gridLayout.rowCount = rowCount
-        gridLayout.columnCount = columnCount
-        val letters = ('A'..'Z').toList()
-        for (i in 0 until rowCount * columnCount) {
+    private fun generateInitialLetters() {
+        val vowels = listOf("A", "E", "I", "O", "U")
+        val consonants = ('A'..'Z').filter { !vowels.contains(it.toString()) }
+
+        // ensure at least 2 vowels are present
+        val initialVowels = List(2) { vowels.random() }
+        val remainingLetters = List(gridSize * gridSize - 2) { consonants.random().toString() }
+
+        initialLetters = (initialVowels + remainingLetters).shuffled()
+    }
+    private fun initializeGameBoard() {
+        gridLayout.removeAllViews()
+        allButtons.clear()
+
+        initialLetters?.forEachIndexed { index, letter ->
             val button = Button(context).apply {
-                text = letters.random().toString()
+                text = letter
                 layoutParams = GridLayout.LayoutParams(
-                    GridLayout.spec(i / columnCount, GridLayout.FILL, 1f),
-                    GridLayout.spec(i % columnCount, GridLayout.FILL, 1f)
+                    GridLayout.spec(index / gridSize, GridLayout.FILL, 1f),
+                    GridLayout.spec(index % gridSize, GridLayout.FILL, 1f)
                 ).apply {
                     width = 0
                     height = 0
                     setMargins(8, 8, 8, 8)
                 }
-                setOnClickListener {
-                    if (isValidSelection(i)) {
-                        handleLetterClick(this, i)
-                    }
-                }
+                setOnClickListener { handleLetterClick(this, index) }
             }
+            button.setBackgroundColor(resources.getColor(android.R.color.holo_blue_light))
             gridLayout.addView(button)
+            allButtons.add(button)
         }
     }
 
     private fun handleLetterClick(button: Button, position: Int) {
-        button.isEnabled = false
-        selectedLetters.append(button.text)
-        selectedLettersTextView.text = selectedLetters.toString()
-        selectedButtons.add(button)
-        lastSelectedPositions.add(position)
+        if (isValidSelection(position)) {
+            selectedLetters.append(button.text)
+            selectedLettersTextView.text = selectedLetters.toString()
+            button.isEnabled = false
+            button.setBackgroundColor(resources.getColor(android.R.color.darker_gray))
+            lastSelectedIndex = position
+        }
     }
-
     private fun isValidSelection(position: Int): Boolean {
-        // Ensure selection is adjacent to the last if not the first letter
-        if (lastSelectedPositions.isNotEmpty()) {
-            val lastPosition = lastSelectedPositions.last()
-            val lastRow = lastPosition / gridSize
-            val lastCol = lastPosition % gridSize
+        lastSelectedIndex?.let {
+            // calculate the row and column of the last and current selections
+            val lastRow = it / gridSize
+            val lastCol = it % gridSize
             val currentRow = position / gridSize
             val currentCol = position % gridSize
+
+            // check if the selected button is adjacent to the last
             if (abs(lastRow - currentRow) > 1 || abs(lastCol - currentCol) > 1) {
+                Snackbar.make(requireView(), "You may only select connected letters", Snackbar.LENGTH_SHORT).show()
                 return false
             }
         }
         return true
     }
 
+
     private fun submitWord() {
         val word = selectedLetters.toString().uppercase()
-        if (word.isNotEmpty() && isValidWord(word)) {
-            currentScore += calculateScore(word)
+        if (submittedWords.contains(word)) {
+            Snackbar.make(requireView(), "You've already used $word", Snackbar.LENGTH_SHORT).show()
+            clearSelection()
+            return
+        }
+
+        if (word.length >= 4 && isValidWord(word)) {
+            val scoreToAdd = calculateScore(word)
+            currentScore += scoreToAdd
             listener?.onScoreUpdated(currentScore)
+            Snackbar.make(requireView(), "That’s correct, +$scoreToAdd", Snackbar.LENGTH_SHORT).show()
         } else {
-            currentScore -= 10
+            currentScore = maxOf(0, currentScore - 10)
             listener?.onScoreUpdated(currentScore)
+            Snackbar.make(requireView(), "That’s incorrect, -10", Snackbar.LENGTH_SHORT).show()
         }
         clearSelection()
     }
 
     private fun isValidWord(word: String): Boolean {
-        // Implement additional checks here if necessary
-        return word.length >= 4 &&
-                dictionary.contains(word) &&
-                word.count { it in "AEIOUaeiou" } >= 2
+        return word.length >= 4 && dictionary.contains(word) && word.count { it in "AEIOUaeiou" } >= 2
     }
 
     private fun calculateScore(word: String): Int {
@@ -137,10 +160,11 @@ class GameFragment : Fragment() {
     private fun clearSelection() {
         selectedLetters.clear()
         selectedLettersTextView.text = ""
-        selectedButtons.forEach { button ->
+        allButtons.forEach { button ->
             button.isEnabled = true
+            button.setBackgroundColor(resources.getColor(android.R.color.holo_blue_light))
         }
-        selectedButtons.clear()
+        lastSelectedIndex = null
     }
 
     // load dictionary from assets folder
@@ -154,6 +178,13 @@ class GameFragment : Fragment() {
         return words
     }
 
+    fun resetGame() {
+        currentScore = 0
+        clearSelection()
+        generateInitialLetters()
+        initializeGameBoard()
+        submittedWords.clear()
+    }
     override fun onDetach() {
         super.onDetach()
         listener = null

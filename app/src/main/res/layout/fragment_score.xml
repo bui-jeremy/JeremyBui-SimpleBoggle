@@ -14,6 +14,14 @@
         android:textSize="24sp"
         android:layout_gravity="center_horizontal"/>
 
-    <!-- Optionally add a RecyclerView or ListView here for displaying found words -->
+    <Button
+        android:id="@+id/restartGameButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/restart_game"
+        android:background="@color/holo_blue"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="16dp"/>
+
 
 </LinearLayout>
